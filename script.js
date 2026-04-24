@@ -35,6 +35,78 @@ async function getQuote() {
 }
 
 /**
+ * Searches for books using the Open Library API.
+ * @param {string} query - The search query.
+ * @returns {Promise<Array>} - Array of book objects.
+ */
+async function searchBooks(query) {
+    try {
+        const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=5`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data || !data.docs) {
+            throw new Error("Invalid response format from API");
+        }
+        
+        return data.docs.map(book => ({
+            title: book.title,
+            author: book.author_name ? book.author_name[0] : 'Unknown Author',
+            coverId: book.cover_i,
+            key: book.key
+        }));
+    } catch (error) {
+        console.warn("Book search failed:", error.message);
+        return [];
+    }
+}
+
+/**
+ * Updates the books grid with search results.
+ * @param {Array} books - Array of book objects.
+ */
+function updateBooksGrid(books) {
+    const booksGrid = document.querySelector('.books-grid');
+    if (!booksGrid) return;
+    
+    booksGrid.innerHTML = '';
+    
+    if (books.length === 0) {
+        booksGrid.innerHTML = '<p>No books found.</p>';
+        return;
+    }
+    
+    books.forEach(book => {
+        const bookCard = document.createElement('article');
+        bookCard.className = 'book-card';
+        
+        const coverUrl = book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg` : 'img/placeholder.svg';
+        
+        bookCard.innerHTML = `
+            <div class="book-info">
+                <h3>${book.title}</h3>
+                <p>${book.author}</p>
+            </div>
+            <img src="${coverUrl}" alt="${book.title}" onerror="this.src='img/placeholder.svg'" />
+        `;
+        
+        booksGrid.appendChild(bookCard);
+    });
+}
+
+/**
+ * Loads default books on page load.
+ */
+async function loadDefaultBooks() {
+    const books = await searchBooks('philosophy');
+    updateBooksGrid(books);
+}
+
+/**
  * Updates the UI with the fetched quote.
  * Only runs if document is defined (browser environment).
  */
@@ -63,11 +135,20 @@ if (typeof document !== 'undefined') {
     }
     
     // Initial fetch on page load
-    window.addEventListener('DOMContentLoaded', updateQuoteUI);
+    window.addEventListener('DOMContentLoaded', () => {
+        updateQuoteUI();
+        loadDefaultBooks();
+    });
+    
+    // Search functionality
+    const searchForm = document.querySelector('.search-bar');
+    if (searchForm) {
+        searchForm.addEventListener('submit', handleSearch);
+    }
 }
 
 // Export for Node.js testing environment
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { getQuote };
+    module.exports = { getQuote, searchBooks, loadDefaultBooks };
 }
 
